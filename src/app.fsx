@@ -46,7 +46,6 @@ let toDateTime (timestamp:int) =
 // Type providers for accessing data
 // ----------------------------------------------------------------------------
 
-type Weather = JsonProvider<"http://api.openweathermap.org/data/2.5/forecast/daily?q=Prague&mode=json&units=metric&cnt=10&APPID=cb63a1cf33894de710a1e3a64f036a27">
 type BBC = XmlProvider<"http://feeds.bbci.co.uk/news/rss.xml">
 type Stocks = CsvProvider<"http://ichart.finance.yahoo.com/table.csv?s=MSFT">
 
@@ -55,43 +54,62 @@ type Stocks = CsvProvider<"http://ichart.finance.yahoo.com/table.csv?s=MSFT">
 // Web server and query answering
 // ----------------------------------------------------------------------------
 
-let answer (question:string) = async {
+// TASK #1: Below is a sample function that uses the XML type provider to 
+// print BBC news. Follow the example of handling `stock MSFT` request in the
+// `answer` function and adapt the code below so that the bot returns nicely
+// formatted news when the user sends us `news` request:
+
+let printNews () = 
+  let res = BBC.GetSample()
+  let items = 
+    [ for r in res.Channel.Items -> 
+        sprintf " - %s" r.Title ] 
+  let body = items |> Seq.take 10 |> String.concat ""
+  printf "<ul>%s</ul>" body
+
+
+// TASK #2: Add handler for weather forecast. To do this, use `JsonProvider` using
+// the sample URL below (similar to XML and CSV). Then use `YourType.Load` to
+// get weather forecast for a place (using `weatherUrl` to get the right URL)
+// The resulting type has various properties - you'll find forecast in 
+// `res.List` (where each item has `it.Temp.Day` etc.). You can also use 
+// `toDateTime` (above) to convert the returned timestamps from `Dt`.
+// 
+// Sample URL for JsonProvider:
+//  - http://api.openweathermap.org/data/2.5/forecast/daily?q=Prague&mode=json&units=metric&cnt=10&APPID=cb63a1cf33894de710a1e3a64f036a27
+// More information about JsonProvider:
+//  - http://fsharp.github.io/FSharp.Data/library/JsonProvider.html 
+
+
+// TASK #3: When calling 3rd party services, we are currently blocking system
+// threads - this will not scale and we should do this asynchronously. 
+// To do this, wrap the body of the `answer` function in `async { ... }` 
+// block and add `return` keyword to return data. Then you can change
+// calls to `Load` to `AsyncLoad` and `GetSample` to `AsyncGetSample`
+// and call them using `let!` keyword. Also call `answer` using `let!` in 
+// the main body of the server. 
+//
+// More information about async:
+// - https://msdn.microsoft.com/en-us/visualfsharpdocs/conceptual/asynchronous-workflows-%5Bfsharp%5D
+
+let answer (question:string) = 
   let words = question.ToLower().Split(' ') |> List.ofSeq
   match words with
-  | ["weather"; city] ->
-      let! res = Weather.AsyncLoad(weatherUrl city)
-      let items = 
-        [ for r in res.List -> 
-            sprintf "<li><strong>%s</strong> &mdash; day %i&deg;C / night %i&deg;C</li>" 
-              ((toDateTime r.Dt).ToString("D")) 
-              (int r.Temp.Day) (int r.Temp.Night) ] 
-      let body = items |> String.concat ""
-      return Successful.OK ("<ul>" + body + "</ul>")      
-
-  | ["news"] ->
-      let! res = BBC.AsyncGetSample()
-      let items = 
-        [ for r in res.Channel.Items -> 
-            sprintf "<li><a href='%s'>%s</a></li>" r.Link r.Title ] 
-      let body = items |> Seq.take 10 |> String.concat ""
-      return Successful.OK (sprintf "<ul>%s</ul>" body) 
-
   | ["stock"; stock] ->
-      let! res = Stocks.AsyncLoad(stocksUrl stock)
+      let res = Stocks.Load(stocksUrl stock)
       let items = 
         [ for r in res.Rows -> 
             sprintf "<li><strong>%s</strong>: %f</li>" 
               (r.Date.ToString("D")) r.Open ] 
       let body = items |> Seq.take 10 |> String.concat ""
-      return Successful.OK (sprintf "<ul>%s</ul>" body) 
-
+      sprintf "<ul>%s</ul>" body
   | _ -> 
-      return Successful.OK "Sorry Dave, I cannot do that." }
+      "Sorry Dave, I cannot do that." 
 
 let app =
   choose [
     path "/" >=> Files.browseFile root "index.html"
     path "/query" >=> fun ctx -> async {
-        let! res = answer (HttpUtility.UrlDecode(ctx.request.rawQuery))
-        return! res ctx }
+        let res = answer (HttpUtility.UrlDecode(ctx.request.rawQuery))
+        return! Successful.OK res ctx }
     Files.browse root ]
