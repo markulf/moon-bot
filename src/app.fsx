@@ -2,6 +2,7 @@
 #r "System.Xml.Linq.dll"
 #r "../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "../packages/Suave/lib/net40/Suave.dll"
+#load "math.fs"
 #else
 module App
 #endif
@@ -92,10 +93,20 @@ let printNews () =
 // More information about async:
 // - https://msdn.microsoft.com/en-us/visualfsharpdocs/conceptual/asynchronous-workflows-%5Bfsharp%5D
 
+
+// TASK #4: For more see 'math.fs'. This implements a simple evaluator
+// of binary expressions using parser combinators. The possibilities are
+// limitless :-)
+
+
+// ----------------------------------------------------------------------------
+// Producing answers 
+// ----------------------------------------------------------------------------
+
 let answer (question:string) = 
   let words = question.ToLower().Split(' ') |> List.ofSeq
   match words with
-  | ["stock"; stock] ->
+  | "stock" :: stock :: [] ->
       let res = Stocks.Load(stocksUrl stock)
       let items = 
         [ for r in res.Rows -> 
@@ -103,8 +114,10 @@ let answer (question:string) =
               (r.Date.ToString("D")) r.Open ] 
       let body = items |> Seq.take 10 |> String.concat ""
       sprintf "<ul>%s</ul>" body
-  | _ -> 
-      "Sorry Dave, I cannot do that." 
+  
+  | "eval" :: cmds -> Math.eval (String.concat " " cmds)
+  | _ -> "Sorry Dave, I cannot do that." 
+
 
 let app =
   choose [
