@@ -114,7 +114,13 @@ let answer (question:string) =
               (r.Date.ToString("D")) r.Open ] 
       let body = items |> Seq.take 10 |> String.concat ""
       sprintf "<ul>%s</ul>" body
-  
+  | "news" :: news ->
+      let res = BBC.GetSample()
+      let items = 
+        [ for r in res.Channel.Items -> 
+          sprintf " - %s" r.Title ] 
+      let body = items |> Seq.take 5 |> String.concat """<br>"""
+      sprintf "<ul>%s</ul>" body
   | "eval" :: cmds -> Math.eval (String.concat " " cmds)
   | _ -> "Sorry Dave, I cannot do that." 
 
@@ -122,6 +128,7 @@ let answer (question:string) =
 let app =
   choose [
     path "/" >=> Files.browseFile root "index.html"
+    path "/hello" >=> Successful.OK "Hello World"
     path "/query" >=> fun ctx -> async {
         let res = answer (HttpUtility.UrlDecode(ctx.request.rawQuery))
         return! Successful.OK res ctx }
